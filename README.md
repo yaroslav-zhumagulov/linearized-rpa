@@ -4,7 +4,6 @@ Linearized random phase approximation (RPA) for computing static susceptibilitie
 
 ## Features
 
-- Four-band tight-binding Hamiltonian for Bernal (AB-stacked) bilayer graphene with displacement field, Rashba SOC, and valley Zeeman coupling
 - Fortran-accelerated computation of the Lindhard susceptibility in both particle-hole and particle-particle channels
 - Self-consistent Hartree-Fock with spin/valley symmetry breaking
 - Kanamori-type interaction tensor with Hubbard U and Hund's coupling J
@@ -27,9 +26,9 @@ pip install --no-build-isolation -e ".[dev]"
 
 ```python
 import numpy as np
-from linearized_rpa import BernalBilayer, tensor
-from linearized_rpa.hartree_fock import hartree_fock_sym
-from linearized_rpa.susceptibility import calculate_chi_ph, calculate_chi_pp
+from lrpa import BernalBilayer, tensor
+from lrpa.hartree_fock import hartree_fock_sym
+from lrpa.susceptibility import calculate_chi_ph, calculate_chi_pp
 
 # Set up interaction
 U_4 = tensor(U=12, J=-1.2)
@@ -60,7 +59,7 @@ See [examples/bilayer_graphene.py](examples/bilayer_graphene.py) for a complete 
 linearized-rpa/
 ├── pyproject.toml              # Build configuration (meson-python)
 ├── meson.build                 # Top-level Meson build
-├── linearized_rpa/
+├── lrpa/
 │   ├── __init__.py
 │   ├── constants.py            # Universal constants and Pauli matrices
 │   ├── interaction.py          # Kanamori interaction tensor

@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.special import expit
-from linearized_rpa.constants import kB, sz
-from linearized_rpa.chemical_potential import calculate_mu
+from lrpa.constants import kB, sz
+from lrpa.chemical_potential import calculate_mu
 
 
 def hartree_fock_sym(model, U_2, T, occ, niter=20, alpha=0.7):

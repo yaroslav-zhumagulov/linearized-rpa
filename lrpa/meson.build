@@ -6,7 +6,7 @@ py.install_sources(
   'susceptibility.py',
   'chemical_potential.py',
   'soc_parameters.py',
-  subdir: 'linearized_rpa',
+  subdir: 'lrpa',
 )
 
 subdir('models')
@@ -40,6 +40,6 @@ py.extension_module(
   ['calculate_chi.f90', chi_module_source, fortranobject_c],
   include_directories: inc_np,
   dependencies: py.dependency(),
-  subdir: 'linearized_rpa',
+  subdir: 'lrpa',
   install: true,
 )

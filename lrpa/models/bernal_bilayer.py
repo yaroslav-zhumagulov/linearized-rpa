@@ -1,6 +1,6 @@
 import numpy as np
-from linearized_rpa.constants import s0, sx, sy, sz
-from linearized_rpa.soc_parameters import SOCParameters
+from lrpa.constants import s0, sx, sy, sz
+from lrpa.soc_parameters import SOCParameters
 
 # Lattice parameters
 la = 2.46  # [A]

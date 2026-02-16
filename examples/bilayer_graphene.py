@@ -7,9 +7,9 @@ Hartree-Fock self-consistency.
 """
 
 import numpy as np
-from linearized_rpa import BernalBilayer, tensor
-from linearized_rpa.hartree_fock import hartree_fock_sym
-from linearized_rpa.susceptibility import calculate_chi_ph, calculate_chi_pp
+from lrpa import BernalBilayer, tensor
+from lrpa.hartree_fock import hartree_fock_sym
+from lrpa.susceptibility import calculate_chi_ph, calculate_chi_pp
 
 # --- Parameters ---
 V = 30       # displacement field [meV]

@@ -10,4 +10,4 @@ project(
 
 py = import('python').find_installation(pure: false)
 
-subdir('linearized_rpa')
+subdir('lrpa')

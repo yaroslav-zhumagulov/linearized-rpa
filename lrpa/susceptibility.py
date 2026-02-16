@@ -1,6 +1,6 @@
 import numpy as np
-from linearized_rpa.chi_module import calculate_chi_ph as _calculate_chi_ph
-from linearized_rpa.chi_module import calculate_chi_pp as _calculate_chi_pp
+from lrpa.chi_module import calculate_chi_ph as _calculate_chi_ph
+from lrpa.chi_module import calculate_chi_pp as _calculate_chi_pp
 
 
 def calculate_chi_ph(model):

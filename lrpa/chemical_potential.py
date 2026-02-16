@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import brentq
 from scipy.special import expit
-from linearized_rpa.constants import kB
+from lrpa.constants import kB
 
 
 def calculate_mu(model, occ: float = 0, T: float = 0.4, e=None, tol: float = 1e-12):

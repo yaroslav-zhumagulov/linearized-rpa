@@ -25,8 +25,8 @@ def calculate_chi_pp(model):
     e_inv = model.e_inv - model.mu
 
     if model.sigma is not None:
-        e += model.sigma[:, None, None]
-        e_inv += model.sigma[:, None, None]
+        e += model.sigma
+        e_inv += model.sigma
 
     na, nk, ns, norb, nb = model.u.shape
 

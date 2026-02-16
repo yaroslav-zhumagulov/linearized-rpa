@@ -1,0 +1,18 @@
+[build-system]
+requires = ["meson-python>=0.15", "numpy", "meson>=1.1.0"]
+build-backend = "mesonpy"
+
+[project]
+name = "linearized-rpa"
+version = "0.1.0"
+description = "Linearized RPA susceptibilities for Bernal bilayer graphene"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "matplotlib",
+]

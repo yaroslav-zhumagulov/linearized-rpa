@@ -35,11 +35,13 @@ chi_module_source = custom_target(
             '--lower', '--build-dir', '@OUTDIR@'],
 )
 
+omp = dependency('openmp', required: false)
+
 py.extension_module(
   'chi_module',
   ['calculate_chi.f90', chi_module_source, fortranobject_c],
   include_directories: inc_np,
-  dependencies: py.dependency(),
+  dependencies: [py.dependency(), omp],
   subdir: 'lrpa',
   install: true,
 )

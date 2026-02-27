@@ -10,7 +10,7 @@ def calculate_chi_ph(model):
     na, nk, norb, nb = model.u.shape
 
     e = np.asfortranarray(e)
-    u = np.asfortranarray(model.u)
+    u = np.asfortranarray(model.u.transpose(2, 0, 1, 3))  # (norb, na, nk, nb) — stride-1 for dot_product
 
     _calculate_chi_ph(chi_ph, e, u, model.beta, na, nk, norb, nb)
     model.chi_ph = np.ascontiguousarray(chi_ph) / (model.N * model.N)

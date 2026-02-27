@@ -5,42 +5,44 @@ subroutine calculate_chi_ph(chi, e, u, beta, na, nk, norb, nb)
     ! Arguments
     integer, intent(in) :: na, nk, norb, nb
     real(8), intent(in) :: e(na, nk, nb), beta
-    complex(8), intent(in) :: u(na, nk, norb, nb)
+    complex(8), intent(in) :: u(norb, na, nk, nb)   ! norb first: stride-1 for dot_product
     complex(8), intent(inout) :: chi(2,2,2,2)
 
-
     ! Local variables
-    integer :: k, a, b, n, m, i, j
-    real(8) :: factor, fa, fb
+    integer :: k, a, b, n, m
+    real(8) :: factor, f_an, f_bm, delta_e
+    real(8) :: f(na, nk, nb)
+    complex(8) :: C
 
-    ! Loop over dimensions
+    ! Precompute Fermi-Dirac factors
+    f = 1.0d0 / (1.0d0 + exp(beta * e))
+
+    !$omp parallel do reduction(+:chi) private(a,b,n,m,C,factor,f_an,f_bm,delta_e) schedule(static)
     do k = 1, nk
         do a = 1, na
             do b = 1, na
                 do n = 1, nb
+                    f_an = f(a, k, n)
                     do m = 1, nb
-                        if (e(b, k, m) == e(a, k, n)) then
-                            fa = 1.0d0 / (1.0d0 + exp(+beta * e(a, k, n)))
-                            fb = 1.0d0 / (1.0d0 + exp(-beta * e(a, k, n)))
-                            factor = beta * fa * fb
+                        f_bm = f(b, k, m)
+                        delta_e = e(b, k, m) - e(a, k, n)
+
+                        if (abs(delta_e) < 1.0d-10) then
+                            factor = beta * f_an * (1.0d0 - f_an)
                         else
-                            fa = 1.0d0 / (1.0d0 + exp(beta * e(a, k, n)))
-                            fb = 1.0d0 / (1.0d0 + exp(beta * e(b, k, m)))
-                            factor = (fa - fb) / (e(b, k, m) - e(a, k, n))
+                            factor = (f_an - f_bm) / delta_e
                         end if
 
-                        ! Accumulate into chi
-                        do i = 1, norb
-                            do j = 1, norb
-                                chi(a,b,b,a) = chi(a,b,b,a) + factor * &
-                                    conjg(u(a, k,i, n)) * u(a, k,j, n) * &
-                                    conjg(u(b, k,j, m)) * u(b, k,i, m)
-                                            
-                            end do
-                        end do
+                        ! C = sum_i conj(u(i,a,k,n)) * u(i,b,k,m)
+                        ! dot_product conjugates first arg for complex arrays
+                        C = dot_product(u(:, a, k, n), u(:, b, k, m))
+                        chi(a,b,b,a) = chi(a,b,b,a) + factor * (real(C)**2 + aimag(C)**2)
+
                     end do
                 end do
             end do
         end do
     end do
+    !$omp end parallel do
+
 end subroutine calculate_chi_ph

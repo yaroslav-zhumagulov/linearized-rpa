@@ -1,10 +1,10 @@
 # Linearized RPA
 
-Linearized random phase approximation (RPA) for computing static susceptibilities in Bernal bilayer graphene. Includes particle-hole and particle-particle channels with self-consistent Hartree-Fock and Fortran-accelerated bubble summation.
+Linearized random phase approximation (RPA) for computing static susceptibilities in Bernal bilayer graphene. Includes a particle-hole channel with self-consistent Hartree-Fock and Fortran-accelerated bubble summation. This branch (`spinless`) implements the spinless formulation.
 
 ## Features
 
-- Fortran-accelerated computation of the Lindhard susceptibility in both particle-hole and particle-particle channels
+- Fortran-accelerated computation of the Lindhard susceptibility in the particle-hole channel (spinless)
 - Self-consistent Hartree-Fock with spin/valley symmetry breaking
 - Kanamori-type interaction tensor with Hubbard U and Hund's coupling J
 
@@ -26,29 +26,19 @@ pip install --no-build-isolation -e ".[dev]"
 
 ```python
 import numpy as np
-from lrpa import BernalBilayer, tensor
-from lrpa.hartree_fock import hartree_fock_sym
-from lrpa.susceptibility import calculate_chi_ph, calculate_chi_pp
-
-# Set up interaction
-U_4 = tensor(U=12, J=-1.2)
-U_2 = np.zeros((4, 4))
-for a in range(4):
-    for b in range(4):
-        U_2[a, b] = U_4[a, a, b, b]
+from lrpa import BernalBilayer, tensor, calculate_mu
+from lrpa.susceptibility import calculate_chi_ph
 
 # Build model at V = 30 meV displacement field
 model = BernalBilayer(V=30)
-model.init_mesh(N=18000, kmax=0.06)
+model.init_mesh(N=12000, kmax=0.04)
 model.calculate_bandstructure()
-model.calculate_inverse_bandstructure()
 
-# Self-consistent Hartree-Fock at T = 0.4 K, doping = -0.6 * 10^12 cm^-2
-hartree_fock_sym(model, U_2, T=0.4, occ=-0.6)
+# Chemical potential at T = 0.4 K, doping = -0.5 * 10^12 cm^-2
+calculate_mu(model, occ=-0.5, T=0.4)
 
-# Compute susceptibilities
-calculate_chi_ph(model)   # particle-hole channel
-calculate_chi_pp(model)   # particle-particle channel
+# Compute particle-hole susceptibility
+calculate_chi_ph(model)
 ```
 
 See [examples/bilayer_graphene.py](examples/bilayer_graphene.py) for a complete example with RPA instability analysis.
@@ -65,7 +55,7 @@ linearized-rpa/
 │   ├── interaction.py          # Kanamori interaction tensor
 │   ├── chemical_potential.py   # Chemical potential solver
 │   ├── hartree_fock.py         # Self-consistent Hartree-Fock
-│   ├── susceptibility.py       # Chi calculation (particle-hole & particle-particle)
+│   ├── susceptibility.py       # Chi calculation (particle-hole channel)
 │   ├── calculate_chi.f90       # Fortran susceptibility kernels
 │   ├── meson.build             # f2py extension build
 │   └── models/

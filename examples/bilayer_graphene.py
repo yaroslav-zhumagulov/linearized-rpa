@@ -14,8 +14,8 @@ from lrpa.susceptibility import calculate_chi_ph
 V = 30  # displacement field [meV]
 occ = -0.5  # doping [10^12 cm^-2]
 T = 0.4  # temperature [K]
-N = 12000  # k-mesh density
-kmax = 0.04  # momentum cutoff [1/A]
+N = 18000  # k-mesh density
+kmax = 0.06  # momentum cutoff [1/A]
 
 # Interaction: Hubbard U with Hund's coupling J = -U/10
 U = 12  # [eV]

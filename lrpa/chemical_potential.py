@@ -15,6 +15,6 @@ def calculate_mu(model, occ: float = 0, T: float = 0.4, e=None, tol: float = 1e-
     model.occ = occ
 
     def func(mu):
-        return model.factor * np.sum(expit(-beta * (e - mu)) - 0.5) - occ
+        return 2 * model.factor * np.sum(expit(-beta * (e - mu)) - 0.5) - occ
 
     model.mu = brentq(func, *bounds, xtol=tol)

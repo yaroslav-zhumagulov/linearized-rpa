@@ -104,4 +104,4 @@ def split_quartic_tensor_in_charge_and_spin(U_4):
     # U_c *= 4
     # U_s *= 4
 
-    return U_c, U_s
+    return -U_c, U_s

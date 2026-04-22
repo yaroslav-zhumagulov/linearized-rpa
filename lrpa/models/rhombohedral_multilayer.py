@@ -223,6 +223,6 @@ class RhombohedralMultilayer(object):
     
         self.chi_ph = chi/self.N**2
 
-def V00(theta, eps=1.0): # fit from 10.1103/PhysRevB.100.235424 Fig.3(a)
-    val = 18.0 * (theta - 1.0) + 1.0  # meV for eps=1 
-    return val / eps / 1000
+    def V00(self, eps=1.0): # fit from 10.1103/PhysRevB.100.235424 Fig.3(a)
+        val = 18.0 * (self.theta - 1.0) + 1.0  # meV for eps=1 
+        return val / eps / 1000

@@ -254,7 +254,7 @@ class RhombohedralMultilayer(object):
     
         self.chi_ph = chi/self.N**2
 
-    def calculate_chi_q(self, q, Qcut_chi=None):
+    def calculate_chi_q(self, q, Qcut_chi=0, bands=None):
         """
         Static chi^{tau,tau'}(q; G, G') in the particle-hole bubble approximation.
         Valley index is treated as pseudospin.
@@ -265,9 +265,14 @@ class RhombohedralMultilayer(object):
             Momentum transfer in fractional mBZ coordinates (same units as self.k).
         Qcut_chi : int or None
             Cutoff for the output G-vectors (|n1|, |n2| <= Qcut_chi).
-            None uses the full model.Qcut.  Qcut_chi=0 gives only G=G'=0,
-            returning shape (2, 2, 1, 1).
+            Default Qcut_chi=0 gives only G=G'=0, shape (2, 2, 1, 1).
+            Pass Qcut_chi=None to use the full model.Qcut.
             The G=(0,0) index in the result is always chi.shape[2]//2.
+        bands : tuple (n_min, n_max) or None
+            0-based half-open slice [n_min:n_max] of bands included in the
+            Lindhard sum.  None uses all bands.  For magic-angle TBG the two
+            flat bands per valley are at Ndim//2-1 and Ndim//2, so pass
+            bands=(Ndim//2-1, Ndim//2+1).
 
         Returns
         -------
@@ -275,7 +280,7 @@ class RhombohedralMultilayer(object):
             Also stored as self.chi_q.  ng_chi = (2*Qcut_chi+1)**2.
         """
         from lrpa.susceptibility import calculate_chi_q as _ftn
-        return _ftn(self, q, Qcut_chi=Qcut_chi)
+        return _ftn(self, q, Qcut_chi=Qcut_chi, bands=bands)
 
     def V00(self, eps=1.0): # fit from 10.1103/PhysRevB.100.235424 Fig.3(a)
         val = 18.0 * (self.theta - 1.0) + 1.0  # meV for eps=1 

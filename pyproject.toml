@@ -5,8 +5,19 @@ build-backend = "mesonpy"
 [project]
 name = "linearized-rpa"
 version = "0.1.0"
-description = "Linearized RPA susceptibilities for Bernal bilayer graphene"
+description = "Linearized RPA susceptibilities for Bernal bilayer graphene and rhombohedral multilayers"
+readme = "README.md"
 requires-python = ">=3.10"
+authors = [
+    { name = "Yaroslav Zhumagulov", email = "yaroslav.zhumagulov@gmail.com" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Fortran",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+]
 dependencies = [
     "numpy",
     "scipy",
@@ -15,4 +26,10 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "matplotlib",
+    "pytest",
 ]
+
+[project.urls]
+Homepage = "https://github.com/yaroslav-zhumagulov/linearized-rpa"
+Repository = "https://github.com/yaroslav-zhumagulov/linearized-rpa"
+Issues = "https://github.com/yaroslav-zhumagulov/linearized-rpa/issues"

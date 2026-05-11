@@ -10,13 +10,29 @@ Linearized random phase approximation (RPA) for computing static susceptibilitie
 
 ## Installation
 
-Requires a Fortran compiler (e.g. `gfortran`) and Python >= 3.10.
+Requires a Fortran compiler (e.g. `gfortran`) and Python >= 3.10. On macOS, OpenMP support requires `libomp` (`brew install libomp`).
+
+Install the latest version directly from GitHub:
 
 ```bash
+pip install git+https://github.com/yaroslav-zhumagulov/linearized-rpa.git
+```
+
+Or install a specific branch / tag:
+
+```bash
+pip install git+https://github.com/yaroslav-zhumagulov/linearized-rpa.git@spinless
+```
+
+From a local clone:
+
+```bash
+git clone https://github.com/yaroslav-zhumagulov/linearized-rpa.git
+cd linearized-rpa
 pip install .
 ```
 
-For development:
+For development (editable install with dev extras):
 
 ```bash
 pip install --no-build-isolation -e ".[dev]"

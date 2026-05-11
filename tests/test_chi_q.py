@@ -24,7 +24,7 @@ def test_q0_G0_matches_chi_ph_spinless(model):
     chi_ph = model.chi_ph.copy()
 
     chi_q = model.calculate_chi_q([0.0, 0.0])
-    G0 = model._qvec_to_idx[(0, 0)]
+    G0 = chi_q.shape[2] // 2
 
     for tau in range(2):
         for taup in range(2):
@@ -43,7 +43,7 @@ def test_each_block_hermitian_q0(model):
 
     Proof: conjugating the sum Σ M_G W M*_G' swaps G <-> G'.
     """
-    chi_q = model.calculate_chi_q([0.0, 0.0])
+    chi_q = model.calculate_chi_q([0.0, 0.0], Qcut_chi=None)
     for tau in range(2):
         for taup in range(2):
             block = chi_q[tau, taup]
@@ -57,7 +57,7 @@ def test_diagonal_elements_real_q0(model):
     """
     Diagonal G=G' elements are real (direct consequence of Hermiticity).
     """
-    chi_q = model.calculate_chi_q([0.0, 0.0])
+    chi_q = model.calculate_chi_q([0.0, 0.0], Qcut_chi=None)
     for tau in range(2):
         for taup in range(2):
             diag_imag = np.diag(chi_q[tau, taup]).imag
@@ -72,7 +72,7 @@ def test_each_block_hermitian_finite_q(model):
     Hermiticity holds for a finite q as well.
     """
     q = [1.0 / model.N, 0.0]
-    chi_q = model.calculate_chi_q(q)
+    chi_q = model.calculate_chi_q(q, Qcut_chi=None)
     for tau in range(2):
         for taup in range(2):
             block = chi_q[tau, taup]
@@ -89,7 +89,7 @@ def test_intravalley_positive_semidefinite(model):
     At omega=0 the Lindhard weight (f_n - f_m)/(E_m - E_n) >= 0 and the
     accumulation is a sum of rank-1 PSD updates, so all eigenvalues >= 0.
     """
-    chi_q = model.calculate_chi_q([0.0, 0.0])
+    chi_q = model.calculate_chi_q([0.0, 0.0], Qcut_chi=None)
     for tau in range(2):
         block = chi_q[tau, tau]
         eigvals = np.linalg.eigvalsh(0.5 * (block + block.conj().T))

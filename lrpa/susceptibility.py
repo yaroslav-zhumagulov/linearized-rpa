@@ -17,7 +17,7 @@ def calculate_chi_ph(model):
     model.chi_ph = np.ascontiguousarray(chi_ph) / (model.N * model.N)
 
 
-def calculate_chi_q(model, q, Qcut_chi=None):
+def calculate_chi_q(model, q, Qcut_chi=0, bands=None):
     """
     Compute static chi^{tau,tau'}(q; G, G') via the Fortran kernel.
 
@@ -30,27 +30,39 @@ def calculate_chi_q(model, q, Qcut_chi=None):
     Qcut_chi : int or None
         Truncation cutoff for the output G-vectors.  Only G-vectors with
         |n1| <= Qcut_chi and |n2| <= Qcut_chi are included.  Must be <= model.Qcut.
-        None (default) uses model.Qcut, giving the full (NG x NG) matrix.
-        Use Qcut_chi=0 to compute only the G=G'=0 element, returning (2,2,1,1).
+        Default Qcut_chi=0 returns only the G=G'=0 element, shape (2,2,1,1).
+        Pass Qcut_chi=None to use the full model.Qcut.
         The G=(0,0) index in the result is always chi.shape[2]//2.
+    bands : tuple (n_min, n_max) or None
+        Python 0-based half-open slice [n_min:n_max] selecting which bands
+        participate in the Lindhard sum.  None (default) uses all nb bands.
+        For magic-angle TBG the two flat bands per valley are at indices
+        Ndim//2-1 and Ndim//2, so pass bands=(Ndim//2-1, Ndim//2+1).
 
     Returns
     -------
     chi : ndarray, shape (2, 2, ng_chi, ng_chi), complex
         Stored as model.chi_q.  ng_chi = (2*Qcut_chi+1)**2.
     """
-    na, nk, norb, nb = model.u.shape
+    na, nk, norb, nb_full = model.u.shape
 
     if Qcut_chi is None:
         Qcut_chi = model.Qcut
+
+    if bands is None:
+        n_min, n_max = 0, nb_full
+    else:
+        n_min, n_max = bands
+
+    nb = n_max - n_min
 
     # Select rows of G_shift corresponding to |n1|,|n2| <= Qcut_chi
     mask = (np.abs(model.qvecs[0]) <= Qcut_chi) & (np.abs(model.qvecs[1]) <= Qcut_chi)
     ig_sel = np.where(mask)[0]
     ng = len(ig_sel)  # = (2*Qcut_chi+1)**2
 
-    e = np.asfortranarray(model.e - model.mu)              # (na, nk, nb)
-    u = np.asfortranarray(model.u.transpose(2, 0, 1, 3))  # (norb, na, nk, nb)
+    e = np.asfortranarray((model.e - model.mu)[:, :, n_min:n_max])   # (na, nk, nb)
+    u = np.asfortranarray(model.u[:, :, :, n_min:n_max].transpose(2, 0, 1, 3))  # (norb, na, nk, nb)
 
     # k+q indices: shift on the N×N grid, converted to 1-based Fortran indexing
     dkx = int(round(q[0] * model.N))

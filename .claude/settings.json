@@ -3,7 +3,17 @@
     "allow": [
       "Bash(python -c \"import _linearized_rpa_editable_loader; print\\(_linearized_rpa_editable_loader.__file__\\)\")",
       "Bash(python -c ' *)",
-      "Bash(meson setup *)"
+      "Bash(meson setup *)",
+      "Bash(python -m pytest tests/test_chi_q_bands.py tests/test_chi_q.py -v)",
+      "Bash(python -c \"import sys; sys.path.insert\\(0, '/Users/yaroslav/miniconda3/lib/python3.12/site-packages'\\); import _linearized_rpa_editable_loader as L; print\\([f for f in dir\\(L\\) if not f.startswith\\('_'\\)]\\)\")",
+      "Bash(/Users/yaroslav/miniconda3/bin/ninja)",
+      "Bash(python -c \"from lrpa.models.rhombohedral_multilayer import RhombohedralMultilayer; print\\('import OK'\\)\")",
+      "Bash(git config *)",
+      "Bash(rm -rf lrpa_test_build)",
+      "Bash(python -m build /Users/yaroslav/GitLab/xiaoqian/linearized-rpa --wheel --outdir /tmp/lrpa_test_build)",
+      "Bash(python -m build --wheel --outdir /tmp/lrpa_test_build /Users/yaroslav/GitLab/xiaoqian/linearized-rpa)",
+      "Bash(unzip -l /tmp/lrpa_test_build/linearized_rpa-0.1.0-cp312-cp312-macosx_26_0_arm64.whl)",
+      "Bash(python -m pytest tests/ -x)"
     ]
   }
 }

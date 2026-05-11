@@ -51,13 +51,13 @@ end subroutine calculate_chi_ph
 ! Static chi^{tau,tau'}(q; G, G') with valley treated as pseudospin.
 !
 ! Arguments
-!   chi         (na, na, ng, ng) complex — accumulates the sum; normalise by nk in Python
-!   e           (na, nk, nb)     real    — band energies relative to mu
-!   u           (norb, na, nk, nb) complex — eigenvectors, orbital index first (stride-1)
-!   beta                         real    — inverse temperature
-!   kq_idx      (nk)             integer — 1-based index of k+q on the k-grid
-!   G_shift_idx (ng, norb)       integer — 1-based shifted orbital index; 0 = out of basis
-!   na, nk, norb, nb, ng         integer — dimensions
+!   chi         (na, na, ng, ng) complex -- accumulates the sum; normalise by nk in Python
+!   e           (na, nk, nb)     real    -- band energies relative to mu
+!   u           (norb, na, nk, nb) complex -- eigenvectors, orbital index first (stride-1)
+!   beta                         real    -- inverse temperature
+!   kq_idx      (nk)             integer -- 1-based index of k+q on the k-grid
+!   G_shift_idx (ng, norb)       integer -- 1-based shifted orbital index; 0 = out of basis
+!   na, nk, norb, nb, ng         integer -- dimensions
 !
 subroutine calculate_chi_q(chi, e, u, beta, kq_idx, G_shift_idx, na, nk, norb, nb, ng)
     implicit none
@@ -86,8 +86,8 @@ subroutine calculate_chi_q(chi, e, u, beta, kq_idx, G_shift_idx, na, nk, norb, n
                 do b = 1, na
 
                     ! Cache-friendly local copies
-                    ! ubconj(m, alpha) = conj(u(alpha, b, kq, m))   — column stride-1 in m
-                    ! uaT(n, alpha)    = u(alpha, a, k, n)           — column stride-1 in n
+                    ! ubconj(m, alpha) = conj(u(alpha, b, kq, m))   -- column stride-1 in m
+                    ! uaT(n, alpha)    = u(alpha, a, k, n)           -- column stride-1 in n
                     do m = 1, nb
                         ubconj(m, :) = conjg(u(:, b, kq, m))
                     end do

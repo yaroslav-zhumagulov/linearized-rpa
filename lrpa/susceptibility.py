@@ -17,7 +17,7 @@ def calculate_chi_ph(model):
     model.chi_ph = np.ascontiguousarray(chi_ph) / (model.N * model.N)
 
 
-def calculate_chi_q(model, q):
+def calculate_chi_q(model, q, Qcut_chi=None):
     """
     Compute static chi^{tau,tau'}(q; G, G') via the Fortran kernel.
 
@@ -27,14 +27,27 @@ def calculate_chi_q(model, q):
         Must have calculate_bandstructure() called and mu, beta set.
     q : array-like, shape (2,)
         Momentum transfer in fractional mBZ coordinates.
+    Qcut_chi : int or None
+        Truncation cutoff for the output G-vectors.  Only G-vectors with
+        |n1| <= Qcut_chi and |n2| <= Qcut_chi are included.  Must be <= model.Qcut.
+        None (default) uses model.Qcut, giving the full (NG x NG) matrix.
+        Use Qcut_chi=0 to compute only the G=G'=0 element, returning (2,2,1,1).
+        The G=(0,0) index in the result is always chi.shape[2]//2.
 
     Returns
     -------
-    chi : ndarray, shape (2, 2, NG, NG), complex
-        Stored as model.chi_q.
+    chi : ndarray, shape (2, 2, ng_chi, ng_chi), complex
+        Stored as model.chi_q.  ng_chi = (2*Qcut_chi+1)**2.
     """
     na, nk, norb, nb = model.u.shape
-    ng = model.Nqvec
+
+    if Qcut_chi is None:
+        Qcut_chi = model.Qcut
+
+    # Select rows of G_shift corresponding to |n1|,|n2| <= Qcut_chi
+    mask = (np.abs(model.qvecs[0]) <= Qcut_chi) & (np.abs(model.qvecs[1]) <= Qcut_chi)
+    ig_sel = np.where(mask)[0]
+    ng = len(ig_sel)  # = (2*Qcut_chi+1)**2
 
     e = np.asfortranarray(model.e - model.mu)              # (na, nk, nb)
     u = np.asfortranarray(model.u.transpose(2, 0, 1, 3))  # (norb, na, nk, nb)
@@ -47,9 +60,9 @@ def calculate_chi_q(model, q):
     kq_idx = ((ky_idx + dky) % model.N) * model.N + (kx_idx + dkx) % model.N + 1
     kq_idx = np.asfortranarray(kq_idx)
 
-    # G-shift table: convert from Python 0-based (-1=invalid) to Fortran 1-based (0=invalid)
-    G_shift = np.where(model._G_shift_idx >= 0, model._G_shift_idx + 1, 0).astype(np.int32)
-    G_shift = np.asfortranarray(G_shift)  # (ng, norb) Fortran-order
+    # G-shift table: select rows, convert Python 0-based to Fortran 1-based
+    G_shift_full = np.where(model._G_shift_idx >= 0, model._G_shift_idx + 1, 0).astype(np.int32)
+    G_shift = np.asfortranarray(G_shift_full[ig_sel])  # (ng, norb)
 
     chi = np.zeros((na, na, ng, ng), dtype=np.complex128, order="F")
     _calculate_chi_q(chi, e, u, model.beta, kq_idx, G_shift, na, nk, norb, nb, ng)

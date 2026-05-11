@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.special import expit
 from lrpa.constants import s0, sx, sy, sz
 
 # lattice constant
@@ -25,6 +26,7 @@ class RhombohedralMultilayer(object):
         
         self.V = V
         self.mu = None
+        self.beta = None
         self.nlayer = nlayer
         self.theta = theta
         self.Qcut = Qcut
@@ -54,9 +56,39 @@ class RhombohedralMultilayer(object):
             return kD
             
         self.kD = _moire_len(self)
-        self.Ndim = 2 * (2 * self.Qcut + 1) ** 2 * self.nlayer
+        self.Nqvec = (2 * self.Qcut + 1) ** 2
+        self.Ndim = 2 * self.Nqvec * self.nlayer
+        self.qvecs = np.mgrid[-self.Qcut:self.Qcut+1,
+                               -self.Qcut:self.Qcut+1].reshape(2, self.Nqvec)
+        self._qvec_to_idx = {
+            (int(self.qvecs[0, iq]), int(self.qvecs[1, iq])): iq
+            for iq in range(self.Nqvec)
+        }
+        self._G_shift_idx = self._build_G_shift_idx()
 
     
+    def _build_G_shift_idx(self):
+        """
+        Precompute G-shift index table.
+        Returns int32 array of shape (Nqvec, Ndim):
+          idx[ig, alpha] = basis index of alpha shifted by G[ig], or -1 if out of basis.
+        """
+        Nqvec, Ndim = self.Nqvec, self.Ndim
+        idx = np.full((Nqvec, Ndim), -1, dtype=np.int32)
+        for ig in range(Nqvec):
+            dq0 = int(self.qvecs[0, ig])
+            dq1 = int(self.qvecs[1, ig])
+            for alpha in range(Ndim):
+                l  = alpha // (Nqvec * 2)
+                iq = (alpha % (Nqvec * 2)) // 2
+                s  = alpha % 2
+                key = (int(self.qvecs[0, iq]) + dq0,
+                       int(self.qvecs[1, iq]) + dq1)
+                iq_new = self._qvec_to_idx.get(key)
+                if iq_new is not None:
+                    idx[ig, alpha] = l * Nqvec * 2 + iq_new * 2 + s
+        return idx
+
     def hamiltonian(self, km, valley):
         
         def _system_in(self,reverse=1, twist=True):
@@ -198,7 +230,7 @@ class RhombohedralMultilayer(object):
         # self.u = u[:, :, None, :, :]
 
     def calculate_chi_ph_spinless(self, eps=1e-10):
-        fermi = lambda x: 1.0 / (1.0 + np.exp(np.clip(self.beta * x, -700, 700)))
+        fermi = lambda x: expit(-self.beta * x)
         
         # nvalley, nk, norb, nb = self.u.shape
         e = self.e - self.mu
@@ -215,13 +247,33 @@ class RhombohedralMultilayer(object):
                 mask = np.abs(denom) < eps
                 np.divide(numer, denom, out=factor, where=~mask)
                 if np.any(mask):
-                    x = 0.5 * (e[_a][:, :, None] + e[_b][:, None, :])
-                    fx = fermi(x)
-                    factor[mask] = (self.beta * fx * (1.0 - fx))[mask]
+                    ki, ni, _ = np.where(mask)
+                    factor[mask] = self.beta * f[_a][ki, ni] * (1.0 - f[_a][ki, ni])
     
                 chi[_a, _b, _b, _a] = np.sum(factor * W)
     
         self.chi_ph = chi/self.N**2
+
+    def calculate_chi_q(self, q):
+        """
+        Static chi^{tau,tau'}(q; G, G') in the particle-hole bubble approximation.
+        Valley index is treated as pseudospin.
+
+        Parameters
+        ----------
+        q : array-like, shape (2,)
+            Momentum transfer in fractional mBZ coordinates (same units as self.k).
+
+        Returns
+        -------
+        chi : ndarray, shape (2, 2, NG, NG), complex
+            chi[tau, taup, G, Gp] = chi^{tau,tau'}(q; G, G').
+            Also stored as self.chi_q.
+
+        Requires calculate_bandstructure() to have been called and self.mu, self.beta set.
+        """
+        from lrpa.susceptibility import calculate_chi_q as _ftn
+        return _ftn(self, q)
 
     def V00(self, eps=1.0): # fit from 10.1103/PhysRevB.100.235424 Fig.3(a)
         val = 18.0 * (self.theta - 1.0) + 1.0  # meV for eps=1 

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import _linearized_rpa_editable_loader; print\\(_linearized_rpa_editable_loader.__file__\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(meson setup *)"
+    ]
+  }
+}

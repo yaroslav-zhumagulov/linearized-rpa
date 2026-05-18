@@ -229,6 +229,18 @@ class RhombohedralMultilayer(object):
         self.u = u
         # self.u = u[:, :, None, :, :]
 
+    def calculate_inverse_bandstructure(self):
+        h_inv = np.empty((2, self.nk, self.Ndim, self.Ndim), dtype=np.complex128)
+        for t, tau in enumerate([-1, +1]):
+            for ki, k in enumerate(-self.k.T):
+                h_inv[t,ki] = self.hamiltonian(k, valley=tau)
+        e_inv, u_inv = np.linalg.eigh(h_inv)
+
+        self.h_inv = h_inv
+        self.e_inv = e_inv
+        self.u_inv = u_inv
+        # self.u_inv = u_inv[:, :, None, :, :]
+
     def calculate_chi_ph_spinless(self, eps=1e-10):
         fermi = lambda x: expit(-self.beta * x)
         
@@ -254,33 +266,173 @@ class RhombohedralMultilayer(object):
     
         self.chi_ph = chi/self.N**2
 
-    def calculate_chi_q(self, q, Qcut_chi=0, bands=None):
-        """
-        Static chi^{tau,tau'}(q; G, G') in the particle-hole bubble approximation.
-        Valley index is treated as pseudospin.
+    def calculate_chi_pp_spinless(self, eps=1e-10):
+        fermi = lambda x: expit(-self.beta * x)
+    
+        if not hasattr(self, "e_inv") or not hasattr(self, "u_inv"):
+            self.calculate_inverse_bandstructure()
+    
+        e     = self.e     - self.mu
+        e_inv = self.e_inv - self.mu
+    
+        f     = fermi(e)
+        f_inv = fermi(e_inv)
+    
+        chi = np.zeros((2, 2, 2, 2), dtype=np.float64)
+    
+        for a in range(2):
+            for b in range(2):
+    
+                # PP anomalous form factor:
+                # A[k,n,m] = sum_i u_a[k,i,n] * u_inv_b[k,i,m]
+                A = self.u[a].transpose(0, 2, 1) @ self.u_inv[b]
+                W = np.abs(A) ** 2
+    
+                numer = 1.0 - f[a][:, :, None] - f_inv[b][:, None, :]
+    
+                # Match your Fortran convention:
+                # factor = (1 - fa - fb) / (-e_inv_b - e_a)
+                denom = -e_inv[b][:, None, :] - e[a][:, :, None]
+    
+                factor = np.empty_like(denom)
+                mask = np.abs(denom) < eps
+    
+                np.divide(numer, denom, out=factor, where=~mask)
+    
+                if np.any(mask):
+                    # Limit of (1 - f(ea) - f(eb)) / (-(ea + eb))
+                    # when ea + eb -> 0.
+                    da = f[a][:, :, None] * (1.0 - f[a][:, :, None])
+                    db = f_inv[b][:, None, :] * (1.0 - f_inv[b][:, None, :])
+                    factor[mask] = -0.5 * self.beta * (da + db)[mask]
+    
+                chi[a, b, b, a] = np.sum(factor * W)
+    
+        self.chi_pp = chi / self.N**2
 
-        Parameters
-        ----------
-        q : array-like, shape (2,)
-            Momentum transfer in fractional mBZ coordinates (same units as self.k).
-        Qcut_chi : int or None
-            Cutoff for the output G-vectors (|n1|, |n2| <= Qcut_chi).
-            Default Qcut_chi=0 gives only G=G'=0, shape (2, 2, 1, 1).
-            Pass Qcut_chi=None to use the full model.Qcut.
-            The G=(0,0) index in the result is always chi.shape[2]//2.
-        bands : tuple (n_min, n_max) or None
-            0-based half-open slice [n_min:n_max] of bands included in the
-            Lindhard sum.  None uses all bands.  For magic-angle TBG the two
-            flat bands per valley are at Ndim//2-1 and Ndim//2, so pass
-            bands=(Ndim//2-1, Ndim//2+1).
-
-        Returns
-        -------
-        chi : ndarray, shape (2, 2, ng_chi, ng_chi), complex
-            Also stored as self.chi_q.  ng_chi = (2*Qcut_chi+1)**2.
+    def calculate_chi_q(self, q=(0.0, 0.0), bands=None, eps=1e-10):
         """
-        from lrpa.susceptibility import calculate_chi_q as _ftn
-        return _ftn(self, q, Qcut_chi=Qcut_chi, bands=bands)
+        Pure Python chi^{tau,tau'}(q; G, G').
+    
+        Output:
+            self.chi_q.shape = (2, 2, self.Nqvec, self.Nqvec)
+    
+        q is in fractional mBZ coordinates.
+        q must be commensurate with the N x N k mesh.
+        """
+        fermi = lambda x: expit(-self.beta * x)
+    
+        q = np.asarray(q, dtype=float)
+    
+        if bands is None:
+            bs = slice(None)
+        else:
+            bs = slice(bands[0], bands[1])
+    
+        e = self.e[:, :, bs] - self.mu       # (2, nk, nb)
+        u = self.u[:, :, :, bs]              # (2, nk, Ndim, nb)
+        f = fermi(e)
+    
+        _, nk, Ndim, nb = u.shape
+        ng = self.Nqvec
+        G_shift = self._G_shift_idx          # (ng, Ndim)
+    
+        # ---------- k + q wrapping ----------
+        q_int = np.rint(q * self.N).astype(int)
+        if not np.allclose(q, q_int / self.N, atol=1e-12):
+            raise ValueError("q must be [integer/N, integer/N].")
+    
+        ix = np.rint(self.k[0] * self.N).astype(int) % self.N
+        iy = np.rint(self.k[1] * self.N).astype(int) % self.N
+    
+        ix_raw = ix + q_int[0]
+        iy_raw = iy + q_int[1]
+    
+        ix_q = ix_raw % self.N
+        iy_q = iy_raw % self.N
+    
+        kq_idx = iy_q * self.N + ix_q
+    
+        wrap0 = (ix_raw - ix_q) // self.N
+        wrap1 = (iy_raw - iy_q) // self.N
+    
+        def shift_orbital(dg0, dg1):
+            idx = np.full(Ndim, -1, dtype=int)
+    
+            for alpha in range(Ndim):
+                l  = alpha // (self.Nqvec * 2)
+                iq = (alpha % (self.Nqvec * 2)) // 2
+                s  = alpha % 2
+    
+                Q0 = int(self.qvecs[0, iq]) + int(dg0)
+                Q1 = int(self.qvecs[1, iq]) + int(dg1)
+    
+                iq_new = self._qvec_to_idx.get((Q0, Q1))
+                if iq_new is not None:
+                    idx[alpha] = l * self.Nqvec * 2 + iq_new * 2 + s
+    
+            return idx
+    
+        wrap_idx = {
+            (int(g0), int(g1)): shift_orbital(g0, g1)
+            for g0, g1 in set(zip(wrap0, wrap1))
+        }
+    
+        # ---------- Lindhard sum ----------
+        chi = np.zeros((2, 2, ng, ng), dtype=np.complex128)
+    
+        for ik in range(nk):
+            ikq = kq_idx[ik]
+    
+            iw = wrap_idx[(int(wrap0[ik]), int(wrap1[ik]))]
+            vw = iw >= 0
+    
+            for a in range(2):
+                ua = u[a, ik]
+                fa = f[a, ik]
+                ea = e[a, ik]
+    
+                for b in range(2):
+                    ub0 = u[b, ikq]
+    
+                    # unfold k+q eigenvector back into the same Q basis
+                    ub = np.zeros_like(ub0)
+                    ub[vw] = ub0[iw[vw]]
+    
+                    fb = f[b, ikq]
+                    eb = e[b, ikq]
+    
+                    numer = fa[:, None] - fb[None, :]
+                    denom = eb[None, :] - ea[:, None]
+    
+                    W = np.empty_like(denom)
+                    mask = np.abs(denom) < eps
+                    np.divide(numer, denom, out=W, where=~mask)
+    
+                    if np.any(mask):
+                        dW = self.beta * fa * (1.0 - fa)
+                        W[mask] = np.broadcast_to(dW[:, None], W.shape)[mask]
+    
+                    F = np.zeros((ng, nb, nb), dtype=np.complex128)
+    
+                    for ig in range(ng):
+                        iG = G_shift[ig]
+                        vG = (iG >= 0) & vw
+    
+                        # F[ig, m, n] = sum_alpha conj(ub[alpha,m]) * ua[alpha+G,n]
+                        F[ig] = ub[vG].conj().T @ ua[iG[vG]]
+    
+                    chi[a, b] += np.einsum(
+                        "gmn,mn,hmn->gh",
+                        F,
+                        W.T,
+                        F.conj(),
+                        optimize=True,
+                    )
+    
+        chi /= self.N ** 2
+        self.chi_q = chi
+        return chi
 
     def V00(self, eps=1.0): # fit from 10.1103/PhysRevB.100.235424 Fig.3(a)
         val = 18.0 * (self.theta - 1.0) + 1.0  # meV for eps=1 

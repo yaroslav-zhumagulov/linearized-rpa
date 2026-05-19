@@ -48,6 +48,51 @@ subroutine calculate_chi_ph(chi, e, u, beta, na, nk, norb, nb)
 end subroutine calculate_chi_ph
 
 
+subroutine calculate_chi_pp(chi, e, u, e_inv, u_inv, beta, na, nk, norb, nb)
+    implicit none
+
+    ! Arguments
+    integer, intent(in) :: na, nk, norb, nb
+    real(8), intent(in) :: e(na, nk, nb), beta
+    complex(8), intent(in) :: u(na, nk, norb, nb)
+
+    real(8), intent(in) :: e_inv(na, nk, nb)
+    complex(8), intent(in) :: u_inv(na, nk, norb, nb)
+
+    complex(8), intent(inout) :: chi(2,2,2,2)
+
+    ! Local variables
+    integer :: k, a, b, n, m, i, j
+    integer:: sa,sb,sc,sd
+    real(8) :: factor, fa, fb
+
+    ! Loop over dimensions
+    do k = 1, nk
+        do a = 1, na
+            do b = 1, na
+                do n = 1, nb
+                    do m = 1, nb
+
+                        f = 1.0d0 / (1.0d0 + exp(beta * e(a, k, n)))
+                        f_inv = 1.0d0 / (1.0d0 + exp(beta * e_inv(b, k, m)))
+                        factor = (1.0d0 - f - f_inv) / (-e_inv(b, k, m) - e(a, k, n))
+
+                        ! Accumulate into chi
+                        do i = 1, norb
+                            do j = 1, norb
+                                chi(a,b,b,a) = chi(a,b,b,a) + factor * &
+                                    conjg(u(a, k, i, n)) * u(a, k, j, n) * &
+                                    conjg(u_inv(b, k,i, m)) * u_inv(b, k, j, m)
+                            end do
+                        end do
+                    end do
+                end do
+            end do
+        end do
+    end do
+end subroutine calculate_chi_pp
+
+
 ! Static chi^{tau,tau'}(q; G, G') with valley treated as pseudospin.
 !
 ! Arguments

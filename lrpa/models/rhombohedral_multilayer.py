@@ -208,8 +208,8 @@ class RhombohedralMultilayer(object):
         # A_BZ = abs(b1[0]*b2[1] - b1[1]*b2[0])
         
         # kn = np.linspace(-0.5, 0.5, N, endpoint=False)
-        kn = np.linspace(0,1,N,endpoint=False)
-        # kn=np.fft.fftfreq(N)
+        # kn = np.linspace(0,1,N,endpoint=False)
+        kn=np.fft.fftfreq(N)
         kx, ky = np.meshgrid(kn, kn)
         self.k = np.stack([kx, ky], axis=-1).reshape(-1, 2).T
         self.nk = self.k.shape[1]

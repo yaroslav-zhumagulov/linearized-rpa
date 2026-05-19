@@ -1,5 +1,6 @@
 import numpy as np
 from lrpa.chi_module import calculate_chi_ph as _calculate_chi_ph
+from lrpa.chi_module import calculate_chi_pp as _calculate_chi_pp
 from lrpa.chi_module import calculate_chi_q as _calculate_chi_q
 
 
@@ -17,7 +18,7 @@ def calculate_chi_ph(model):
     model.chi_ph = np.ascontiguousarray(chi_ph) / (model.N * model.N)
 
 def calculate_chi_pp(model):
-    chi_ph = np.zeros((2, 2, 2, 2), dtype=np.complex128, order="F")
+    chi_pp = np.zeros((2, 2, 2, 2), dtype=np.complex128, order="F")
 
     e = model.e - model.mu
     e_inv = model.e_inv - model.mu
@@ -26,10 +27,10 @@ def calculate_chi_pp(model):
     
 
     e = np.asfortranarray(e)
-    u = np.asfortranarray(model.u.transpose(2, 0, 1, 3))
+    u = np.asfortranarray(model.u)
     
     e_inv = np.asfortranarray(e_inv)
-    u_inv = np.asfortranarray(model.u_inv.transpose(2, 0, 1, 3)) 
+    u_inv = np.asfortranarray(model.u_inv) 
     
 
     _calculate_chi_pp(chi_pp, e, u,e_inv, u_inv, model.beta, na, nk, norb, nb)

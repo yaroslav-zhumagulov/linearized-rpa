@@ -16,6 +16,25 @@ def calculate_chi_ph(model):
     _calculate_chi_ph(chi_ph, e, u, model.beta, na, nk, norb, nb)
     model.chi_ph = np.ascontiguousarray(chi_ph) / (model.N * model.N)
 
+def calculate_chi_pp(model):
+    chi_ph = np.zeros((2, 2, 2, 2), dtype=np.complex128, order="F")
+
+    e = model.e - model.mu
+    e_inv = model.e_inv - model.mu
+
+    na, nk, norb, nb = model.u.shape
+    
+
+    e = np.asfortranarray(e)
+    u = np.asfortranarray(model.u.transpose(2, 0, 1, 3))
+    
+    e_inv = np.asfortranarray(e_inv)
+    u_inv = np.asfortranarray(model.u_inv.transpose(2, 0, 1, 3)) 
+    
+
+    _calculate_chi_pp(chi_pp, e, u,e_inv, u_inv, model.beta, na, nk, norb, nb)
+    model.chi_pp = np.ascontiguousarray(chi_pp) / (model.N * model.N)
+
 
 def calculate_chi_q(model, q, Qcut_chi=0, bands=None):
     """

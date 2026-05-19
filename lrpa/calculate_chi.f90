@@ -73,9 +73,9 @@ subroutine calculate_chi_pp(chi, e, u, e_inv, u_inv, beta, na, nk, norb, nb)
                 do n = 1, nb
                     do m = 1, nb
 
-                        f = 1.0d0 / (1.0d0 + exp(beta * e(a, k, n)))
-                        f_inv = 1.0d0 / (1.0d0 + exp(beta * e_inv(b, k, m)))
-                        factor = (1.0d0 - f - f_inv) / (-e_inv(b, k, m) - e(a, k, n))
+                        fa = 1.0d0 / (1.0d0 + exp(beta * e(a, k, n)))
+                        fb = 1.0d0 / (1.0d0 + exp(beta * e_inv(b, k, m)))
+                        factor = (1.0d0 - fa - fb) / (-e_inv(b, k, m) - e(a, k, n))
 
                         ! Accumulate into chi
                         do i = 1, norb

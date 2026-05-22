@@ -310,129 +310,241 @@ class RhombohedralMultilayer(object):
     
         self.chi_pp = chi / self.N**2
 
-    def calculate_chi_q(self, q=(0.0, 0.0), bands=None, eps=1e-10):
-        """
-        Pure Python chi^{tau,tau'}(q; G, G').
-    
-        Output:
-            self.chi_q.shape = (2, 2, self.Nqvec, self.Nqvec)
-    
-        q is in fractional mBZ coordinates.
-        q must be commensurate with the N x N k mesh.
-        """
-        fermi = lambda x: expit(-self.beta * x)
-    
-        q = np.asarray(q, dtype=float)
-    
+    # ------------------------------------------------------------------
+    # q-resolved susceptibilities
+    # ------------------------------------------------------------------
+    def _band_slice(self, bands):
+        """Return a band slice from either None or [start, stop]."""
         if bands is None:
-            bs = slice(None)
-        else:
-            bs = slice(bands[0], bands[1])
-    
-        e = self.e[:, :, bs] - self.mu       # (2, nk, nb)
-        u = self.u[:, :, :, bs]              # (2, nk, Ndim, nb)
-        f = fermi(e)
-    
-        _, nk, Ndim, nb = u.shape
-        ng = self.Nqvec
-        G_shift = self._G_shift_idx          # (ng, Ndim)
-    
-        # ---------- k + q wrapping ----------
+            return slice(None)
+        return slice(int(bands[0]), int(bands[1]))
+
+    def _fermi(self, e):
+        """Fermi function for energies already measured from mu."""
+        return expit(-self.beta * e)
+
+    def _kq_map(self, q, sign=+1):
+        """
+        Map k -> k + sign*q on the finite N x N mesh.
+
+        Returns
+        -------
+        kq_idx : ndarray, shape (nk,)
+            Flattened mesh index of the wrapped momentum.
+        wrap : ndarray, shape (nk, 2)
+            Integer reciprocal-lattice wrap needed to unfold eigenvectors.
+        """
+        q = np.asarray(q, dtype=float)
         q_int = np.rint(q * self.N).astype(int)
         if not np.allclose(q, q_int / self.N, atol=1e-12):
-            raise ValueError("q must be [integer/N, integer/N].")
-    
+            raise ValueError("q must be commensurate with the mesh: q = [integer/N, integer/N].")
+
         ix = np.rint(self.k[0] * self.N).astype(int) % self.N
         iy = np.rint(self.k[1] * self.N).astype(int) % self.N
-    
-        ix_raw = ix + q_int[0]
-        iy_raw = iy + q_int[1]
-    
+
+        ix_raw = ix + sign * q_int[0]
+        iy_raw = iy + sign * q_int[1]
+
         ix_q = ix_raw % self.N
         iy_q = iy_raw % self.N
-    
+
         kq_idx = iy_q * self.N + ix_q
-    
-        wrap0 = (ix_raw - ix_q) // self.N
-        wrap1 = (iy_raw - iy_q) // self.N
-    
-        def shift_orbital(dg0, dg1):
-            idx = np.full(Ndim, -1, dtype=int)
-    
-            for alpha in range(Ndim):
-                l  = alpha // (self.Nqvec * 2)
-                iq = (alpha % (self.Nqvec * 2)) // 2
-                s  = alpha % 2
-    
-                Q0 = int(self.qvecs[0, iq]) + int(dg0)
-                Q1 = int(self.qvecs[1, iq]) + int(dg1)
-    
-                iq_new = self._qvec_to_idx.get((Q0, Q1))
-                if iq_new is not None:
-                    idx[alpha] = l * self.Nqvec * 2 + iq_new * 2 + s
-    
-            return idx
-    
-        wrap_idx = {
-            (int(g0), int(g1)): shift_orbital(g0, g1)
-            for g0, g1 in set(zip(wrap0, wrap1))
+        wrap = np.stack([(ix_raw - ix_q) // self.N,
+                         (iy_raw - iy_q) // self.N], axis=1)
+        return kq_idx, wrap
+
+    def _shift_orbital(self, dg0, dg1):
+        """
+        Orbital/Q-index map for shifting the plane-wave label Q -> Q + dG.
+
+        idx[alpha] gives the shifted orbital index.  If the shifted Q vector
+        falls outside the Qcut basis, idx[alpha] = -1.
+        """
+        idx = np.full(self.Ndim, -1, dtype=np.int32)
+        for alpha in range(self.Ndim):
+            l  = alpha // (self.Nqvec * 2)
+            iq = (alpha % (self.Nqvec * 2)) // 2
+            s  = alpha % 2
+
+            q0 = int(self.qvecs[0, iq]) + int(dg0)
+            q1 = int(self.qvecs[1, iq]) + int(dg1)
+            iq_new = self._qvec_to_idx.get((q0, q1))
+            if iq_new is not None:
+                idx[alpha] = l * self.Nqvec * 2 + iq_new * 2 + s
+        return idx
+
+    def _wrap_indices(self, wrap, sign=+1):
+        """Cache orbital maps for all wrap vectors appearing in a q calculation."""
+        return {
+            (int(w0), int(w1)): self._shift_orbital(sign * int(w0), sign * int(w1))
+            for w0, w1 in set(map(tuple, wrap))
         }
-    
-        # ---------- Lindhard sum ----------
-        chi = np.zeros((2, 2, ng, ng), dtype=np.complex128)
-    
+
+    def _unfold_vector(self, u0, idx):
+        """
+        Unfold an eigenvector from the wrapped mesh point into the target Q basis.
+        """
+        u = np.zeros_like(u0)
+        valid = idx >= 0
+        u[valid] = u0[idx[valid]]
+        return u, valid
+
+    def _ph_kernel(self, ea, eb, fa, fb, eps):
+        """Particle-hole Lindhard kernel: [f(ea)-f(eb)] / [eb-ea]."""
+        numer = fa[:, None] - fb[None, :]
+        denom = eb[None, :] - ea[:, None]
+
+        K = np.empty_like(denom)
+        mask = np.abs(denom) < eps
+        np.divide(numer, denom, out=K, where=~mask)
+        if np.any(mask):
+            dK = self.beta * fa * (1.0 - fa)
+            K[mask] = np.broadcast_to(dK[:, None], K.shape)[mask]
+        return K
+
+    def _pp_kernel(self, ea, eb, fa, fb, eps):
+        """Particle-particle kernel: [1-f(ea)-f(eb)] / [-eb-ea]."""
+        numer = 1.0 - fa[:, None] - fb[None, :]
+        denom = -eb[None, :] - ea[:, None]
+
+        K = np.empty_like(denom)
+        mask = np.abs(denom) < eps
+        np.divide(numer, denom, out=K, where=~mask)
+        if np.any(mask):
+            da = fa[:, None] * (1.0 - fa[:, None])
+            db = fb[None, :] * (1.0 - fb[None, :])
+            K[mask] = -0.5 * self.beta * (da + db)[mask]
+        return K
+
+    def _ph_form_factors(self, ua, ub, valid):
+        """
+        PH form factors F_G[m,n] = sum_alpha conj(ub[alpha,m]) ua[alpha+G,n].
+        """
+        ng = self.Nqvec
+        nb_b, nb_a = ub.shape[1], ua.shape[1]
+        F = np.zeros((ng, nb_b, nb_a), dtype=np.complex128)
+
+        for ig in range(ng):
+            iG = self._G_shift_idx[ig]
+            vG = (iG >= 0) & valid
+            F[ig] = ub[vG].conj().T @ ua[iG[vG]]
+        return F
+
+    def _pp_form_factors(self, ua, ub, valid):
+        """
+        PP form factors A_G[n,m] = sum_alpha ua[alpha+G,n] ub[alpha,m].
+        No complex conjugation appears in the anomalous PP overlap.
+        """
+        ng = self.Nqvec
+        nb_a, nb_b = ua.shape[1], ub.shape[1]
+        A = np.zeros((ng, nb_a, nb_b), dtype=np.complex128)
+
+        for ig in range(ng):
+            iG = self._G_shift_idx[ig]
+            vG = (iG >= 0) & valid
+            A[ig] = ua[iG[vG]].T @ ub[vG]
+        return A
+
+    def calculate_chi_ph_q(self, q=(0.0, 0.0), bands=None, eps=1e-10):
+        """
+        Particle-hole susceptibility chi_ph^{tau,tau'}(q; G, G').
+
+        Output
+        ------
+        chi_ph_q : complex ndarray, shape (2, 2, Nqvec, Nqvec)
+
+        Notes
+        -----
+        q is given in fractional moire-BZ coordinates and must satisfy
+        q = [integer/N, integer/N] for the current N x N mesh.
+        """
+        bs = self._band_slice(bands)
+        e = self.e[:, :, bs] - self.mu       # (valley, k, band)
+        u = self.u[:, :, :, bs]              # (valley, k, orbital, band)
+        f = self._fermi(e)
+
+        kq_idx, wrap = self._kq_map(q, sign=+1)
+        wrap_idx = self._wrap_indices(wrap, sign=+1)
+
+        _, nk, _, _ = u.shape
+        chi = np.zeros((2, 2, self.Nqvec, self.Nqvec), dtype=np.complex128)
+
         for ik in range(nk):
             ikq = kq_idx[ik]
-    
-            iw = wrap_idx[(int(wrap0[ik]), int(wrap1[ik]))]
-            vw = iw >= 0
-    
+            idx = wrap_idx[tuple(map(int, wrap[ik]))]
+
             for a in range(2):
-                ua = u[a, ik]
-                fa = f[a, ik]
-                ea = e[a, ik]
-    
+                ua, ea, fa = u[a, ik], e[a, ik], f[a, ik]
+
                 for b in range(2):
-                    ub0 = u[b, ikq]
-    
-                    # unfold k+q eigenvector back into the same Q basis
-                    ub = np.zeros_like(ub0)
-                    ub[vw] = ub0[iw[vw]]
-    
-                    fb = f[b, ikq]
-                    eb = e[b, ikq]
-    
-                    numer = fa[:, None] - fb[None, :]
-                    denom = eb[None, :] - ea[:, None]
-    
-                    W = np.empty_like(denom)
-                    mask = np.abs(denom) < eps
-                    np.divide(numer, denom, out=W, where=~mask)
-    
-                    if np.any(mask):
-                        dW = self.beta * fa * (1.0 - fa)
-                        W[mask] = np.broadcast_to(dW[:, None], W.shape)[mask]
-    
-                    F = np.zeros((ng, nb, nb), dtype=np.complex128)
-    
-                    for ig in range(ng):
-                        iG = G_shift[ig]
-                        vG = (iG >= 0) & vw
-    
-                        # F[ig, m, n] = sum_alpha conj(ub[alpha,m]) * ua[alpha+G,n]
-                        F[ig] = ub[vG].conj().T @ ua[iG[vG]]
-    
+                    ub, valid = self._unfold_vector(u[b, ikq], idx)
+                    K = self._ph_kernel(ea, e[b, ikq], fa, f[b, ikq], eps)
+                    F = self._ph_form_factors(ua, ub, valid)
+
                     chi[a, b] += np.einsum(
                         "gmn,mn,hmn->gh",
-                        F,
-                        W.T,
-                        F.conj(),
+                        F, K.T, F.conj(),
                         optimize=True,
                     )
-    
+
         chi /= self.N ** 2
-        self.chi_q = chi
+        self.chi_ph_q = chi
         return chi
+
+    def calculate_chi_pp_q(self, q=(0.0, 0.0), bands=None, eps=1e-10):
+        """
+        Particle-particle susceptibility chi_pp^{tau,tau'}(q; G, G').
+
+        The pair has center-of-mass momentum q: the two single-particle states
+        are taken at k and -k+q.  Therefore q=0 reduces to the same convention
+        used in calculate_chi_pp_spinless().
+
+        Output
+        ------
+        chi_pp_q : complex ndarray, shape (2, 2, Nqvec, Nqvec)
+        """
+        if not hasattr(self, "e_inv") or not hasattr(self, "u_inv"):
+            self.calculate_inverse_bandstructure()
+
+        bs = self._band_slice(bands)
+        e = self.e[:, :, bs] - self.mu
+        u = self.u[:, :, :, bs]
+        f = self._fermi(e)
+
+        e_inv = self.e_inv[:, :, bs] - self.mu
+        u_inv = self.u_inv[:, :, :, bs]
+        f_inv = self._fermi(e_inv)
+
+        # H_inv[p] means H(-p).  To obtain the partner -k+q, use p=k-q.
+        kp_idx, wrap = self._kq_map(q, sign=-1)
+        # Since H_inv[p_mod] is H(-p_mod), the physical shift is -wrap.
+        wrap_idx = self._wrap_indices(wrap, sign=-1)
+
+        _, nk, _, _ = u.shape
+        chi = np.zeros((2, 2, self.Nqvec, self.Nqvec), dtype=np.complex128)
+
+        for ik in range(nk):
+            ikp = kp_idx[ik]
+            idx = wrap_idx[tuple(map(int, wrap[ik]))]
+
+            for a in range(2):
+                ua, ea, fa = u[a, ik], e[a, ik], f[a, ik]
+
+                for b in range(2):
+                    ub, valid = self._unfold_vector(u_inv[b, ikp], idx)
+                    K = self._pp_kernel(ea, e_inv[b, ikp], fa, f_inv[b, ikp], eps)
+                    A = self._pp_form_factors(ua, ub, valid)
+
+                    chi[a, b] += np.einsum(
+                        "gnm,nm,hnm->gh",
+                        A, K, A.conj(),
+                        optimize=True,
+                    )
+
+        chi /= self.N ** 2
+        self.chi_pp_q = chi
+        return chi
+
 
     def V00(self, eps=1.0): # fit from 10.1103/PhysRevB.100.235424 Fig.3(a)
         val = 18.0 * (self.theta - 1.0) + 1.0  # meV for eps=1 

@@ -92,16 +92,8 @@ def split_quartic_tensor_in_charge_and_spin(U_4):
     np.testing.assert_array_almost_equal(U_8[0, 1, 0, 1], zeros)
 
     # -- split in charge and spin
+    
+    U_c = U_8[0,0,1,1] + U_8[0,0,0,0]
+    U_s = U_8[0,0,1,1] - U_8[0,0,0,0]
 
-    # c+ c c+ c form of the charge, spin diagonalization
-    U_c = -U_8[0, 0, 0, 0] - U_8[0, 0, 1, 1]
-    U_s = U_8[0, 0, 0, 0] - U_8[0, 0, 1, 1]
-
-    # c+ c+ c c  form of the charge, spin diagonalization
-    # U_c = U_8[0, 0, 0, 0] + U_8[0, 1, 1, 0]
-    # U_s = -U_8[0, 0, 0, 0] + U_8[0, 1, 1, 0]
-
-    # U_c *= 4
-    # U_s *= 4
-
-    return -U_c, U_s
+    return -U_c, -U_s

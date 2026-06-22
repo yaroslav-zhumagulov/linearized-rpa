@@ -36,9 +36,21 @@ class RhombohedralMultilayer(object):
         self.reverse = bool(reverse)
         self.twist = bool(twist)
 
-        self.lm = la / (2 * np.sin(np.deg2rad(theta) / 2))
-        self.cell = self.lm * np.array([[1, 0], [-1 / 2, np.sqrt(3) / 2]])
-        self.kD = self._moire_len()
+        if self.twist:
+            if np.isclose(self.theta, 0.0):
+                raise ValueError("twist=True requires theta != 0.")
+            self.lm = la / (2 * np.sin(np.deg2rad(self.theta) / 2))
+            self.cell = self.lm * np.array([[1, 0], [-1 / 2, np.sqrt(3) / 2]])
+            self.kD = self._moire_len()
+        else:
+            if not np.isclose(self.theta, 0.0):
+                raise ValueError("twist=False describes the untwisted system, so use theta=0.")
+            self.Qcut = 0
+            self.lm = la
+            self.cell = la * np.array([[1, 0], [-1 / 2, np.sqrt(3) / 2]])
+            self.kD = 0.0
+
+        self.icell = 2 * np.pi * np.linalg.inv(self.cell).T
         self.Nqvec = (2 * self.Qcut + 1) ** 2
         self.Ndim = 2 * self.Nqvec * self.nlayer
         self.qvecs = np.mgrid[
@@ -97,11 +109,19 @@ class RhombohedralMultilayer(object):
         # U_l = -(V/1000) * (l - (N_layer - 1)/2)  [eV]
         E_field = lambda ilayer: -(self.V / 1000.0) * (ilayer - 0.5 * (self.nlayer - 1))
 
-        b1m = np.array([-0.5, -np.sqrt(3) / 2]) * np.sqrt(3) * self.kD
-        b2m = np.array([+1.0, 0.0]) * np.sqrt(3) * self.kD
-        K1 = np.array([np.sqrt(3) / 2, +0.5]) * self.kD
-        K2 = np.array([np.sqrt(3) / 2, -0.5]) * self.kD
-        Ks = (K2, K1)
+        if self.twist:
+            b1m = np.array([-0.5, -np.sqrt(3) / 2]) * np.sqrt(3) * self.kD
+            b2m = np.array([+1.0, 0.0]) * np.sqrt(3) * self.kD
+            K1 = np.array([np.sqrt(3) / 2, +0.5]) * self.kD
+            K2 = np.array([np.sqrt(3) / 2, -0.5]) * self.kD
+            Ks = (K2, K1)
+
+            def get_k(ilayer, q):
+                K = Ks[self.ang[ilayer]]
+                return -tau * K + (km[0] + q[0]) * b1m + (km[1] + q[1]) * b2m
+        else:
+            def get_k(ilayer, q):
+                return km
 
         H = np.zeros((self.Ndim, self.Ndim), dtype=complex)
         idx = lambda layer, iq: 2 * (layer * self.Nqvec + iq)
@@ -116,10 +136,9 @@ class RhombohedralMultilayer(object):
 
         # Intralayer Dirac blocks.
         for ilayer in range(self.nlayer):
-            K = Ks[self.ang[ilayer]]
             for iq, q in enumerate(self.qvecs.T):
                 i = idx(ilayer, iq)
-                k = -tau * K + (km[0] + q[0]) * b1m + (km[1] + q[1]) * b2m
+                k = get_k(ilayer, q)
                 H[i:i + 2, i:i + 2] = (
                     vf * (tau * k[0] * sx - k[1] * sy) + E_field(ilayer) * s0
                 )
@@ -132,8 +151,7 @@ class RhombohedralMultilayer(object):
             for iq, q in enumerate(self.qvecs.T):
                 i = idx(ilayer, iq)
                 j = idx(ilayer + 1, iq)
-                K = Ks[self.ang[ilayer]]
-                k = -tau * K + (km[0] + q[0]) * b1m + (km[1] + q[1]) * b2m
+                k = get_k(ilayer, q)
                 kminus = -(tau * k[0] - 1j * k[1])
                 kplus = -(tau * k[0] + 1j * k[1])
 
@@ -165,13 +183,22 @@ class RhombohedralMultilayer(object):
 
         return H
 
-    def init_mesh(self, N=1000):
+    def init_mesh(self, N=1000, kmax=0.04, cutoff=0.025):
         kn = np.fft.fftfreq(N)
-        kx, ky = np.meshgrid(kn, kn)
-        self.k = np.stack([kx, ky], axis=-1).reshape(-1, 2).T
+
+        if self.twist:
+            kx, ky = np.meshgrid(kn, kn)
+            self.k = np.stack([kx, ky], axis=-1).reshape(-1, 2).T
+        else:
+            mesh = kn[np.abs(kn) <= cutoff]
+            x, y = np.meshgrid(mesh, mesh)
+            k = np.array([x, y]).T.dot(self.icell)
+            i, j = np.where(np.linalg.norm(k, axis=2) <= kmax)
+            self.k = k[i, j].T
+
         self.nk = self.k.shape[1]
         self.N = N
-        self.factor = 1e4 / np.linalg.det(self.cell) / self.N / self.N
+        self.factor = 1e4 / abs(np.linalg.det(self.cell)) / self.N / self.N
 
     def calculate_bandstructure(self):
         h = np.empty((2, self.nk, self.Ndim, self.Ndim), dtype=np.complex128)
@@ -255,5 +282,7 @@ class RhombohedralMultilayer(object):
         self.chi_pp = chi / self.N**2
 
     def V00(self, eps=1.0):  # fit from 10.1103/PhysRevB.100.235424 Fig.3(a)
+        if not self.twist:
+            raise ValueError("V00 is a moire fit and is not valid for twist=False.")
         val = 18.0 * (self.theta - 1.0) + 1.0  # meV for eps=1
         return val / eps / 1000

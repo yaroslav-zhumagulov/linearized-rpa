@@ -7,8 +7,8 @@ la = 2.46  # Angstrom
 a0 = la / np.sqrt(3)
 dc = 3.35
 
-gamma3 = 0
-gamma4 = 0
+gamma3 = 0.28
+gamma4 = -0.140
 v3 = gamma3 * np.sqrt(3) / 2 * la
 v4 = gamma4 * np.sqrt(3) / 2 * la
 

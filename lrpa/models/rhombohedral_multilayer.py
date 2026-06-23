@@ -7,10 +7,10 @@ la = 2.46  # Angstrom
 a0 = la / np.sqrt(3)
 dc = 3.35
 
-gamma_3 = 0
-gamma_4 = 0
-v3 = gamma_3 * np.sqrt(3) / 2 * la
-v4 = gamma_4 * np.sqrt(3) / 2 * la
+gamma3 = 0
+gamma4 = 0
+v3 = gamma3 * np.sqrt(3) / 2 * la
+v4 = gamma4 * np.sqrt(3) / 2 * la
 
 # hopping
 u_AA = 0.070  # eV

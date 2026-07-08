@@ -7,27 +7,22 @@ la = 2.46  # Angstrom
 a0 = la / np.sqrt(3)
 dc = 3.35
 
-gamma3 = 0.28
-gamma4 = -0.140
-v3 = gamma3 * np.sqrt(3) / 2 * la
-v4 = gamma4 * np.sqrt(3) / 2 * la
-
-# hopping
-u_AA = 0.070  # eV
-u_AB = 0.110  # eV
-vppsigma = 0.40  # eV
-vf = 5.817
-
-
 class RhombohedralMultilayer(object):
     def __init__(
         self,
         V: float = 0,
         nlayer: int = 2,
-        theta: float = 1.08,
+        theta: float = 0,
         Qcut: int = 3,
         reverse: bool = True,
         twist: bool = True,
+        
+        vf=2.6 * np.sqrt(3) / 2 * la,
+        u_AA=0.070,
+        u_AB=0.110,
+        vppsigma=0.339,
+        gamma3=0.28,
+        gamma4=-0.140,
     ) -> None:
         self.V = V
         self.nlayer = int(nlayer)
@@ -35,6 +30,13 @@ class RhombohedralMultilayer(object):
         self.Qcut = int(Qcut)
         self.reverse = bool(reverse)
         self.twist = bool(twist)
+
+        self.vf = vf
+        self.u_AA = u_AA
+        self.u_AB = u_AB
+        self.vppsigma = vppsigma
+        self.v3 = gamma3 * np.sqrt(3) / 2 * la
+        self.v4 = gamma4 * np.sqrt(3) / 2 * la
 
         if self.twist:
             if np.isclose(self.theta, 0.0):
@@ -127,11 +129,11 @@ class RhombohedralMultilayer(object):
         idx = lambda layer, iq: 2 * (layer * self.Nqvec + iq)
 
         phi = tau * 2 * np.pi / 3
-        T1 = np.array([[u_AA, u_AB], [u_AB, u_AA]], dtype=complex)
-        T2 = np.array([[u_AA, u_AB * np.exp(+1j * phi)],
-                       [u_AB * np.exp(-1j * phi), u_AA]], dtype=complex)
-        T3 = np.array([[u_AA, u_AB * np.exp(-1j * phi)],
-                       [u_AB * np.exp(+1j * phi), u_AA]], dtype=complex)
+        T1 = np.array([[self.u_AA, self.u_AB], [self.u_AB, self.u_AA]], dtype=complex)
+        T2 = np.array([[self.u_AA, self.u_AB * np.exp(+1j * phi)],
+                       [self.u_AB * np.exp(-1j * phi), self.u_AA]], dtype=complex)
+        T3 = np.array([[self.u_AA, self.u_AB * np.exp(-1j * phi)],
+                       [self.u_AB * np.exp(+1j * phi), self.u_AA]], dtype=complex)
         qmap = {(int(q[0]), int(q[1])): iq for iq, q in enumerate(self.qvecs.T)}
 
         # Intralayer Dirac blocks.
@@ -140,7 +142,7 @@ class RhombohedralMultilayer(object):
                 i = idx(ilayer, iq)
                 k = get_k(ilayer, q)
                 H[i:i + 2, i:i + 2] = (
-                    vf * (tau * k[0] * sx - k[1] * sy) + E_field(ilayer) * s0
+                    self.vf * (tau * k[0] * sx - k[1] * sy) + E_field(ilayer) * s0
                 )
 
         # Same-angle interlayer hopping inside each untwisted multilayer block.
@@ -156,13 +158,13 @@ class RhombohedralMultilayer(object):
                 kplus = -(tau * k[0] + 1j * k[1])
 
                 if chirality == 1:
-                    T = np.array([[v4 * kminus, vppsigma],
-                                  [v3 * kplus,  v4 * kminus]], dtype=complex)
+                    T = np.array([[self.v4 * kminus, self.vppsigma],
+                                  [self.v3 * kplus,  self.v4 * kminus]], dtype=complex)
                 elif chirality == -1:
-                    T = np.array([[v4 * kplus,  v3 * kminus],
-                                  [vppsigma,    v4 * kplus]], dtype=complex)
+                    T = np.array([[self.v4 * kplus, self.v3 * kminus],
+                                  [self.vppsigma,   self.v4 * kplus]], dtype=complex)
                 else:
-                    T = vppsigma * s0
+                    T = self.vppsigma * s0
 
                 H[i:i + 2, j:j + 2] = T
                 H[j:j + 2, i:i + 2] = T.conj().T
@@ -183,7 +185,7 @@ class RhombohedralMultilayer(object):
 
         return H
 
-    def init_mesh(self, N=1000, kmax=0.04, cutoff=0.025):
+    def init_mesh(self, N=4000, kmax=0.04, cutoff=0.025):
         kn = np.fft.fftfreq(N)
 
         if self.twist:

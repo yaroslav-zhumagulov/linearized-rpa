@@ -130,17 +130,10 @@ class RhombohedralMultilayer(object):
 
         phi = tau * 2 * np.pi / 3
         T1 = np.array([[self.u_AA, self.u_AB], [self.u_AB, self.u_AA]], dtype=complex)
-<<<<<<< HEAD
-        T2 = np.array([[self.u_AA, self.u_AB * np.exp(+1j * phi)],
-                       [self.u_AB * np.exp(-1j * phi), self.u_AA]], dtype=complex)
-        T3 = np.array([[self.u_AA, self.u_AB * np.exp(-1j * phi)],
-                       [self.u_AB * np.exp(+1j * phi), self.u_AA]], dtype=complex)
-=======
         T2 = np.array([[self.u_AA, self.u_AB * np.exp(-1j * phi)],
                        [self.u_AB * np.exp(+1j * phi), self.u_AA]], dtype=complex)
         T3 = np.array([[self.u_AA, self.u_AB * np.exp(+1j * phi)],
                        [self.u_AB * np.exp(-1j * phi), self.u_AA]], dtype=complex)
->>>>>>> 9b7eebe (convention fix)
         qmap = {(int(q[0]), int(q[1])): iq for iq, q in enumerate(self.qvecs.T)}
 
         # Intralayer Dirac blocks.
@@ -149,11 +142,7 @@ class RhombohedralMultilayer(object):
                 i = idx(ilayer, iq)
                 k = get_k(ilayer, q)
                 H[i:i + 2, i:i + 2] = (
-<<<<<<< HEAD
-                    self.vf * (tau * k[0] * sx - k[1] * sy) + E_field(ilayer) * s0
-=======
                     self.vf * (tau * k[0] * sx + k[1] * sy) + E_field(ilayer) * s0
->>>>>>> 9b7eebe (convention fix)
                 )
 
         # Same-angle interlayer hopping inside each untwisted multilayer block.
@@ -169,19 +158,11 @@ class RhombohedralMultilayer(object):
                 kplus = -(tau * k[0] + 1j * k[1])
 
                 if chirality == 1:
-<<<<<<< HEAD
-                    T = np.array([[self.v4 * kminus, self.vppsigma],
-                                  [self.v3 * kplus,  self.v4 * kminus]], dtype=complex)
-                elif chirality == -1:
-                    T = np.array([[self.v4 * kplus, self.v3 * kminus],
-                                  [self.vppsigma,   self.v4 * kplus]], dtype=complex)
-=======
                     T = np.array([[self.v4 * kminus, self.v3 * kplus],
                                   [self.vppsigma, self.v4 * kminus]], dtype=complex)
                 elif chirality == -1:
                     T = np.array([[self.v4 * kplus, self.vppsigma],
                                   [self.v3 * kminus, self.v4 * kplus]], dtype=complex)
->>>>>>> 9b7eebe (convention fix)
                 else:
                     T = self.vppsigma * s0
 

@@ -130,10 +130,17 @@ class RhombohedralMultilayer(object):
 
         phi = tau * 2 * np.pi / 3
         T1 = np.array([[self.u_AA, self.u_AB], [self.u_AB, self.u_AA]], dtype=complex)
+<<<<<<< HEAD
         T2 = np.array([[self.u_AA, self.u_AB * np.exp(+1j * phi)],
                        [self.u_AB * np.exp(-1j * phi), self.u_AA]], dtype=complex)
         T3 = np.array([[self.u_AA, self.u_AB * np.exp(-1j * phi)],
                        [self.u_AB * np.exp(+1j * phi), self.u_AA]], dtype=complex)
+=======
+        T2 = np.array([[self.u_AA, self.u_AB * np.exp(-1j * phi)],
+                       [self.u_AB * np.exp(+1j * phi), self.u_AA]], dtype=complex)
+        T3 = np.array([[self.u_AA, self.u_AB * np.exp(+1j * phi)],
+                       [self.u_AB * np.exp(-1j * phi), self.u_AA]], dtype=complex)
+>>>>>>> 9b7eebe (convention fix)
         qmap = {(int(q[0]), int(q[1])): iq for iq, q in enumerate(self.qvecs.T)}
 
         # Intralayer Dirac blocks.
@@ -142,7 +149,11 @@ class RhombohedralMultilayer(object):
                 i = idx(ilayer, iq)
                 k = get_k(ilayer, q)
                 H[i:i + 2, i:i + 2] = (
+<<<<<<< HEAD
                     self.vf * (tau * k[0] * sx - k[1] * sy) + E_field(ilayer) * s0
+=======
+                    self.vf * (tau * k[0] * sx + k[1] * sy) + E_field(ilayer) * s0
+>>>>>>> 9b7eebe (convention fix)
                 )
 
         # Same-angle interlayer hopping inside each untwisted multilayer block.
@@ -158,11 +169,19 @@ class RhombohedralMultilayer(object):
                 kplus = -(tau * k[0] + 1j * k[1])
 
                 if chirality == 1:
+<<<<<<< HEAD
                     T = np.array([[self.v4 * kminus, self.vppsigma],
                                   [self.v3 * kplus,  self.v4 * kminus]], dtype=complex)
                 elif chirality == -1:
                     T = np.array([[self.v4 * kplus, self.v3 * kminus],
                                   [self.vppsigma,   self.v4 * kplus]], dtype=complex)
+=======
+                    T = np.array([[self.v4 * kminus, self.v3 * kplus],
+                                  [self.vppsigma, self.v4 * kminus]], dtype=complex)
+                elif chirality == -1:
+                    T = np.array([[self.v4 * kplus, self.vppsigma],
+                                  [self.v3 * kminus, self.v4 * kplus]], dtype=complex)
+>>>>>>> 9b7eebe (convention fix)
                 else:
                     T = self.vppsigma * s0
 
@@ -283,8 +302,209 @@ class RhombohedralMultilayer(object):
 
         self.chi_pp = chi / self.N**2
 
+    def calculate_block_chi_ph_spinless(self, eps=1e-10):
+        fermi = lambda x: expit(-self.beta * x)
+    
+        e = self.e - self.mu
+        f = fermi(e)
+    
+        d = 2 * self.Nqvec
+    
+        # P_surf = P_0 + P_{nlayer-1}
+        i_surf = np.r_[
+            np.arange(0, d),
+            np.arange((self.nlayer - 1) * d, self.nlayer * d),
+        ]
+    
+        # P_int = P_{nlayer/2-1} + P_{nlayer/2}
+        i_int = np.arange(
+            (self.nlayer // 2 - 1) * d,
+            (self.nlayer // 2 + 1) * d,
+        )
+    
+        chi_surf = np.zeros((2, 2, 2, 2), dtype=float)
+        chi_int = np.zeros((2, 2, 2, 2), dtype=float)
+    
+        for a in range(2):
+            for b in range(2):
+                # L_nm = (f_an - f_bm) / (e_bm - e_an)
+                numer = f[a][:, :, None] - f[b][:, None, :]
+                denom = e[b][:, None, :] - e[a][:, :, None]
+    
+                factor = np.empty_like(denom)
+                mask = np.abs(denom) < eps
+    
+                np.divide(numer, denom, out=factor, where=~mask)
+    
+                if np.any(mask):
+                    ki, ni, _ = np.where(mask)
+                    factor[mask] = (
+                        self.beta
+                        * f[a][ki, ni]
+                        * (1.0 - f[a][ki, ni])
+                    )
+    
+                # F_A = <u_{a,n}|P_A|u_{b,m}>
+                uaa = self.u[a][:, i_surf, :]
+                uba = self.u[b][:, i_surf, :]
+                F_surf = uaa.conj().transpose(0, 2, 1) @ uba
+    
+                uaa = self.u[a][:, i_int, :]
+                uba = self.u[b][:, i_int, :]
+                F_int = uaa.conj().transpose(0, 2, 1) @ uba
+    
+                chi_surf[a, b, b, a] = np.sum(
+                    factor * np.abs(F_surf) ** 2
+                )
+                chi_int[a, b, b, a] = np.sum(
+                    factor * np.abs(F_int) ** 2
+                )
+    
+        self.chi_ph_surf = chi_surf / self.N**2
+        self.chi_ph_int = chi_int / self.N**2
+
+    def calculate_block_chi_pp_spinless(self, eps=1e-10):
+        fermi = lambda x: expit(-self.beta * x)
+    
+        if not hasattr(self, "e_inv") or not hasattr(self, "u_inv"):
+            self.calculate_inverse_bandstructure()
+    
+        e = self.e - self.mu
+        e_inv = self.e_inv - self.mu
+    
+        f = fermi(e)
+        f_inv = fermi(e_inv)
+    
+        d = 2 * self.Nqvec
+    
+        # P_surf = P_0 + P_{nlayer-1}
+        i_surf = np.r_[
+            np.arange(0, d),
+            np.arange((self.nlayer - 1) * d, self.nlayer * d),
+        ]
+    
+        # P_int = P_{nlayer/2-1} + P_{nlayer/2}
+        i_int = np.arange(
+            (self.nlayer // 2 - 1) * d,
+            (self.nlayer // 2 + 1) * d,
+        )
+    
+        chi_surf = np.zeros((2, 2, 2, 2), dtype=float)
+        chi_int = np.zeros((2, 2, 2, 2), dtype=float)
+    
+        for a in range(2):
+            for b in range(2):
+                # L_nm = (1 - f_an - f_inv,bm) / (-e_an - e_inv,bm)
+                numer = (
+                    1.0
+                    - f[a][:, :, None]
+                    - f_inv[b][:, None, :]
+                )
+                denom = (
+                    -e[a][:, :, None]
+                    - e_inv[b][:, None, :]
+                )
+    
+                factor = np.empty_like(denom)
+                mask = np.abs(denom) < eps
+    
+                np.divide(numer, denom, out=factor, where=~mask)
+    
+                if np.any(mask):
+                    da = (
+                        f[a][:, :, None]
+                        * (1.0 - f[a][:, :, None])
+                    )
+                    db = (
+                        f_inv[b][:, None, :]
+                        * (1.0 - f_inv[b][:, None, :])
+                    )
+    
+                    factor[mask] = (
+                        -0.5 * self.beta * (da + db)[mask]
+                    )
+    
+                # F_A = u_{a,n}^{T} P_A u_inv,b,m
+                ua = self.u[a][:, i_surf, :]
+                ub = self.u_inv[b][:, i_surf, :]
+                F_surf = ua.transpose(0, 2, 1) @ ub
+    
+                ua = self.u[a][:, i_int, :]
+                ub = self.u_inv[b][:, i_int, :]
+                F_int = ua.transpose(0, 2, 1) @ ub
+    
+                chi_surf[a, b, b, a] = np.sum(
+                    factor * np.abs(F_surf) ** 2
+                )
+                chi_int[a, b, b, a] = np.sum(
+                    factor * np.abs(F_int) ** 2
+                )
+    
+        self.chi_pp_surf = chi_surf / self.N**2
+        self.chi_pp_int = chi_int / self.N**2
+
     def V00(self, eps=1.0):  # fit from 10.1103/PhysRevB.100.235424 Fig.3(a)
         if not self.twist:
             raise ValueError("V00 is a moire fit and is not valid for twist=False.")
         val = 18.0 * (self.theta - 1.0) + 1.0  # meV for eps=1
         return val / eps / 1000
+
+
+    @staticmethod
+    def _project_arrays(e, u, n_keep, center=0.0, hard_cut=np.inf):
+        if n_keep % 2 != 0:
+            raise ValueError("n_keep must be even, e.g. 8, 16, 32.")
+
+        nvalley, nk, nb = e.shape
+        norb = u.shape[2]
+        nhalf = n_keep // 2
+
+        if n_keep > nb:
+            raise ValueError(f"n_keep={n_keep} is larger than the number of bands nb={nb}.")
+
+        e_low = np.empty((nvalley, nk, n_keep), dtype=e.dtype)
+        u_low = np.empty((nvalley, nk, norb, n_keep), dtype=u.dtype)
+
+        for iv in range(nvalley):
+            for ik in range(nk):
+                vals = e[iv, ik]
+                good = np.where(np.isfinite(vals) & (np.abs(vals - center) < hard_cut))[0]
+                below = good[vals[good] <= center]
+                above = good[vals[good] > center]
+
+                below = below[np.argsort(center - vals[below])][:nhalf]
+                above = above[np.argsort(vals[above] - center)][:nhalf]
+
+                if len(below) < nhalf or len(above) < nhalf:
+                    raise RuntimeError(
+                        f"Not enough active bands at valley={iv}, k={ik}: "
+                        f"below={len(below)}, above={len(above)}, required={nhalf}."
+                    )
+
+                idx = np.r_[below, above]
+                idx = idx[np.argsort(vals[idx])]
+                e_low[iv, ik] = vals[idx]
+                u_low[iv, ik] = u[iv, ik][:, idx]
+
+        return e_low, u_low
+
+    def projection(self, n_keep, center=0.0, hard_cut=np.inf):
+        if not hasattr(self, "e_unprojected") or not hasattr(self, "u_unprojected"):
+            if not hasattr(self, "e") or not hasattr(self, "u"):
+                raise ValueError("Call calculate_bandstructure() before projection().")
+            self.e_unprojected = self.e
+            self.u_unprojected = self.u
+
+        self.e, self.u = self._project_arrays(
+            self.e_unprojected, self.u_unprojected,
+            int(n_keep), float(center), float(hard_cut),
+        )
+
+        if hasattr(self, "e_inv") and hasattr(self, "u_inv"):
+            if not hasattr(self, "e_inv_unprojected") or not hasattr(self, "u_inv_unprojected"):
+                self.e_inv_unprojected = self.e_inv
+                self.u_inv_unprojected = self.u_inv
+            self.e_inv, self.u_inv = self._project_arrays(
+                self.e_inv_unprojected, self.u_inv_unprojected,
+                int(n_keep), float(center), float(hard_cut),
+            )

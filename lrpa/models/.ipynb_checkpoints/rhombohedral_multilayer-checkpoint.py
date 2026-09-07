@@ -18,8 +18,6 @@ class RhombohedralMultilayer(object):
         twist: bool = True,
         
         vf=2.6 * np.sqrt(3) / 2 * la,
-        u_AA=0.070,
-        u_AB=0.110,
         vppsigma=0.339,
         gamma3=0.28,
         gamma4=-0.140,
@@ -32,8 +30,6 @@ class RhombohedralMultilayer(object):
         self.twist = bool(twist)
 
         self.vf = vf
-        self.u_AA = u_AA
-        self.u_AB = u_AB
         self.vppsigma = vppsigma
         self.v3 = gamma3 * np.sqrt(3) / 2 * la
         self.v4 = gamma4 * np.sqrt(3) / 2 * la
@@ -60,6 +56,16 @@ class RhombohedralMultilayer(object):
             -self.Qcut:self.Qcut + 1,
         ].reshape(2, self.Nqvec)
         self._system_in()
+        self._tunneling()
+
+    def _tunneling(self): # fit from PhysRevResearch.1.013001
+        """Relaxed-bilayer fit: theta in degrees, tunneling in eV."""
+        theta = abs(float(self.theta))
+        if not np.isfinite(theta) or not 0.42 <= theta <= 5.0:
+            raise ValueError("Fit requires 0.42 <= |theta| <= 5 degrees.")
+    
+        self.u_AA = 0.07881664 / (1.0 + (0.46655647 / theta)**1.81002046)
+        self.u_AB = 0.08455992 + 0.02428948 / (1.0 + (theta / 1.04079245)**2.86625337)
 
     def _moire_len(self):
         th = np.deg2rad(self.theta)
